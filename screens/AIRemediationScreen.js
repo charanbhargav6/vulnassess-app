@@ -77,7 +77,7 @@ export default function AIRemediationScreen({ route, navigation }) {
   return (
     <ScrollView style={[s.container, { backgroundColor: theme.bg }]}>
 
-      {/* Download PDF Button */}
+      {/* Download PDF Button — uncomment when ANTHROPIC_API_KEY is configured
       <TouchableOpacity
         style={[s.downloadBtn, pdfLoading && { opacity: 0.6 }]}
         onPress={handleDownloadPDF}
@@ -87,6 +87,7 @@ export default function AIRemediationScreen({ route, navigation }) {
           {pdfLoading ? '◌  Generating PDF…' : '↓  Download AI Report PDF'}
         </Text>
       </TouchableOpacity>
+      */}
 
       {/* Executive Summary */}
       {data?.executive_summary && (
