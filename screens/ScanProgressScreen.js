@@ -68,26 +68,34 @@ export default function ScanProgressScreen({ route, navigation }) {
   };
 
   const handleCancel = async () => {
-    const confirmed = window.confirm(
-      `Stop the scan of "${scan?.target_url}"? Partial results will be saved.`
+    Alert.alert(
+      'Stop Scan',
+      `Stop the scan of "${scan?.target_url}"? Partial results will be saved.`,
+      [
+        { text: 'Keep Running', style: 'cancel' },
+        {
+          text: 'Stop Scan', style: 'destructive',
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              const res = await api.cancelScan(scanId);
+              if (res.message) {
+                addNotification(
+                  'Scan Stopping',
+                  'Cancellation requested. Finishing current module...',
+                  'info', scanId
+                );
+              } else {
+                Alert.alert('Error', res.detail || 'Could not cancel scan');
+              }
+            } catch (e) {
+              Alert.alert('Error', 'Cannot connect to server');
+            }
+            setCancelling(false);
+          }
+        }
+      ]
     );
-    if (!confirmed) return;
-    setCancelling(true);
-    try {
-      const res = await api.cancelScan(scanId);
-      if (res.message) {
-        addNotification(
-          'Scan Stopping',
-          'Cancellation requested. Finishing current module...',
-          'info', scanId
-        );
-      } else {
-        window.alert(res.detail || 'Could not cancel scan');
-      }
-    } catch (e) {
-      window.alert('Cannot connect to server');
-    }
-    setCancelling(false);
   };
 
   const handleDeletePress = () => {

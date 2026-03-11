@@ -17,6 +17,7 @@ import ProfileScreen from './screens/ProfileScreen';
 import ScansScreen from './screens/ScansScreen';
 import CompareScreen from './screens/CompareScreen';
 import ScheduleScreen from './screens/ScheduleScreen';
+import AIRemediationScreen from './screens/AIRemediationScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -34,7 +35,7 @@ function AppNavigator() {
         return;
       }
       try {
-        const res = await fetch('http://localhost:8000/api/auth/me', {
+        const res = await fetch('https://vulnassess-backend.onrender.com/api/auth/me', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.status === 401) {
@@ -94,6 +95,8 @@ function AppNavigator() {
           options={{ title: 'Scan Comparison' }} />
         <Stack.Screen name="Schedule" component={ScheduleScreen}
           options={{ title: 'Scheduled Scans' }} />
+        <Stack.Screen name="AIRemediation" component={AIRemediationScreen}
+          options={{ title: 'AI Remediation', headerStyle: { backgroundColor: '#1E1B4B' }, headerTintColor: '#A5B4FC' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
