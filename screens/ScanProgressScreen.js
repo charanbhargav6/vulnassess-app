@@ -1,8 +1,6 @@
+// PATH: vulnassess-app/screens/ScanProgressScreen.js
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert, Modal, TextInput
-} from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
 import { api } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useNotifications } from '../context/NotificationContext';
@@ -11,19 +9,15 @@ export default function ScanProgressScreen({ route, navigation }) {
   const { theme } = useTheme();
   const { addNotification } = useNotifications();
   const { scanId } = route.params;
-  const [scan, setScan] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const intervalRef = useRef(null);
-  const notifiedRef = useRef(false);
-
-  // Cancel state
-  const [cancelling, setCancelling] = useState(false);
-
-  // Delete modal state
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletePassword, setDeletePassword] = useState('');
-  const [deleteError, setDeleteError] = useState('');
-  const [deleting, setDeleting] = useState(false);
+  const [scan,      setScan]      = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [cancelling,setCancelling]= useState(false);
+  const [showDel,   setShowDel]   = useState(false);
+  const [delPass,   setDelPass]   = useState('');
+  const [delErr,    setDelErr]    = useState('');
+  const [deleting,  setDeleting]  = useState(false);
+  const intervalRef  = useRef(null);
+  const notifiedRef  = useRef(false);
 
   useEffect(() => {
     fetchScan();
@@ -36,330 +30,241 @@ export default function ScanProgressScreen({ route, navigation }) {
       const data = await api.getScan(scanId);
       setScan(data);
       setLoading(false);
-
-      if (data.status === 'completed' || data.status === 'failed' ||
-          data.status === 'cancelled') {
+      if (['completed','failed','cancelled'].includes(data.status)) {
         clearInterval(intervalRef.current);
-
         if (!notifiedRef.current) {
           notifiedRef.current = true;
           if (data.status === 'completed') {
-            addNotification(
-              'Scan Complete',
-              `Scan of ${data.target_url} finished. Risk score: ${data.total_risk_score?.toFixed(1)}/10`,
-              'success', scanId
-            );
+            addNotification('Scan Complete',
+              `${data.target_url} — Risk: ${data.total_risk_score?.toFixed(1)||'0.0'}/10`, 'success', scanId);
           } else if (data.status === 'cancelled') {
-            addNotification(
-              'Scan Cancelled',
-              `Scan of ${data.target_url} was cancelled. Partial results saved.`,
-              'info', scanId
-            );
+            addNotification('Scan Cancelled', `${data.target_url} — partial results saved.`, 'info', scanId);
           } else {
-            addNotification(
-              'Scan Failed',
-              `Scan of ${data.target_url} encountered an error.`,
-              'error', scanId
-            );
+            addNotification('Scan Failed', `${data.target_url} — error occurred.`, 'error', scanId);
           }
         }
       }
-    } catch (e) { setLoading(false); }
+    } catch { setLoading(false); }
   };
 
-  const handleCancel = async () => {
-    Alert.alert(
-      'Stop Scan',
-      `Stop the scan of "${scan?.target_url}"? Partial results will be saved.`,
-      [
-        { text: 'Keep Running', style: 'cancel' },
-        {
-          text: 'Stop Scan', style: 'destructive',
-          onPress: async () => {
-            setCancelling(true);
-            try {
-              const res = await api.cancelScan(scanId);
-              if (res.message) {
-                addNotification(
-                  'Scan Stopping',
-                  'Cancellation requested. Finishing current module...',
-                  'info', scanId
-                );
-              } else {
-                Alert.alert('Error', res.detail || 'Could not cancel scan');
-              }
-            } catch (e) {
-              Alert.alert('Error', 'Cannot connect to server');
-            }
-            setCancelling(false);
-          }
-        }
-      ]
+  const handleCancel = () => {
+    Alert.alert('Stop Scan', `Stop scanning "${scan?.target_url}"? Partial results will be saved.`,
+      [{ text:'Keep Running', style:'cancel' },
+       { text:'Stop Scan', style:'destructive', onPress: async () => {
+           setCancelling(true);
+           try { await api.cancelScan(scanId); await fetchScan(); } catch {}
+           setCancelling(false);
+         }
+       }]
     );
   };
 
-  const handleDeletePress = () => {
-    Alert.alert(
-      'Delete Scan',
-      `Are you sure you want to delete the scan of "${scan?.target_url}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive',
-          onPress: () => setShowDeleteModal(true)
-        }
-      ]
-    );
-  };
-
-  const handleDeleteConfirm = async () => {
-    setDeleteError('');
-    if (!deletePassword) {
-      setDeleteError('Please enter your password');
-      return;
-    }
+  const handleDelete = async () => {
+    setDelErr('');
+    if (!delPass) { setDelErr('Enter your password'); return; }
     setDeleting(true);
-    try {
-      const res = await api.deleteScanVerified(scanId, deletePassword);
-      if (res.message) {
-        setShowDeleteModal(false);
-        navigation.goBack();
-      } else {
-        setDeleteError(res.detail || 'Incorrect password');
-      }
-    } catch (e) {
-      setDeleteError('Cannot connect to server');
-    }
+    const res = await api.deleteScanVerified(scanId, delPass).catch(() => null);
     setDeleting(false);
+    if (res?.message || res?.success) {
+      setShowDel(false); setDelPass('');
+      navigation.replace('Dashboard');
+    } else {
+      setDelErr(res?.detail || 'Wrong password');
+    }
   };
 
-  const getSeverityColor = (severity) => {
-    const colors = {
-      critical: '#DC2626', high: '#EA580C',
-      medium: '#D97706', low: '#16A34A', info: '#2563EB'
-    };
-    return colors[severity?.toLowerCase()] || '#6B7280';
-  };
+  const sevColor = sev => ({
+    critical:theme.critical, high:theme.high,
+    medium:theme.medium, low:theme.low, info:theme.blue,
+  })[sev?.toLowerCase()] || theme.textMuted;
 
-  const getStatusIcon = (status) => {
-    if (status === 'completed') return 'OK';
-    if (status === 'running') return '...';
-    if (status === 'failed') return 'X';
-    if (status === 'cancelled') return 'STOP';
-    return 'O';
-  };
+  const statusColor = st => ({
+    completed:theme.success, running:theme.medium,
+    failed:theme.danger, cancelled:theme.warning,
+  })[st] || theme.textMuted;
 
-  const getStatusColor = (status) => {
-    if (status === 'completed') return '#16A34A';
-    if (status === 'running') return '#1D6FEB';
-    if (status === 'failed') return '#DC2626';
-    if (status === 'cancelled') return '#D97706';
-    return '#9CA3AF';
-  };
+  const s = StyleSheet.create({
+    container:  { flex:1, backgroundColor:theme.bg },
+    center:     { flex:1, justifyContent:'center', alignItems:'center', backgroundColor:theme.bg },
+    header:     { backgroundColor:theme.header, padding:20, paddingTop:20 },
+    headerUrl:  { color:'#FDFFF5', fontSize:15, fontWeight:'bold', marginBottom:4 },
+    headerMeta: { color:'rgba(253,255,245,0.6)', fontSize:11 },
+    btnRow:     { flexDirection:'row', padding:12, gap:10 },
+    actionBtn:  { flex:1, borderRadius:10, padding:12, alignItems:'center', borderWidth:1 },
+    actionText: { fontWeight:'bold', fontSize:12, letterSpacing:0.5 },
+    card:       { backgroundColor:theme.card, borderRadius:14, margin:12, marginBottom:0, padding:16, borderWidth:1, borderColor:theme.border },
+    sTitle:     { fontSize:10, fontWeight:'bold', color:theme.textSecondary, letterSpacing:2, marginBottom:12 },
+    progressBar:{ height:6, backgroundColor:theme.border, borderRadius:3, overflow:'hidden', marginBottom:8 },
+    progressFill:{ height:'100%', borderRadius:3, backgroundColor:theme.accent },
+    stepText:   { color:theme.textSecondary, fontSize:12 },
+    pctText:    { color:theme.accent, fontSize:12, fontWeight:'bold' },
+    sevRow:     { flexDirection:'row', gap:8, flexWrap:'wrap', marginBottom:8 },
+    sevCard:    { flex:1, borderRadius:10, padding:10, alignItems:'center', borderWidth:1, minWidth:60, borderTopWidth:3 },
+    sevNum:     { fontSize:20, fontWeight:'bold', marginBottom:2 },
+    sevLabel:   { fontSize:8, letterSpacing:1 },
+    vulnItem:   { borderRadius:10, marginBottom:8, borderWidth:1, borderLeftWidth:3, overflow:'hidden' },
+    vulnHeader: { flexDirection:'row', alignItems:'center', padding:12, justifyContent:'space-between' },
+    vulnType:   { fontSize:13, fontWeight:'bold', flex:1, color:theme.text },
+    badge:      { paddingHorizontal:7, paddingVertical:3, borderRadius:5 },
+    badgeText:  { fontSize:9, fontWeight:'bold', letterSpacing:0.5 },
+    vulnDetail: { paddingHorizontal:12, paddingBottom:12, borderTopWidth:1, borderTopColor:theme.border },
+    detailRow:  { marginTop:6 },
+    detailLabel:{ fontSize:10, fontWeight:'bold', color:theme.textMuted, letterSpacing:1 },
+    detailVal:  { color:theme.textSecondary, fontSize:12, marginTop:2 },
+    codeBox:    { backgroundColor:theme.bg, borderRadius:6, padding:8, marginTop:4 },
+    codeText:   { color:theme.warning, fontSize:11, fontFamily:'monospace' },
+    modalOverlay:{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center', padding:24 },
+    modal:      { backgroundColor:theme.card, borderRadius:16, padding:24, width:'100%', maxWidth:380,
+                  borderWidth:1, borderColor:theme.dangerBorder },
+    modalTitle: { fontSize:16, fontWeight:'bold', color:theme.danger, marginBottom:8 },
+    modalDesc:  { fontSize:13, color:theme.textSecondary, marginBottom:14, lineHeight:20 },
+    modalInput: { borderWidth:1, borderColor:theme.inputBorder, borderRadius:8, padding:12,
+                  fontSize:14, color:theme.text, backgroundColor:theme.input, marginBottom:12 },
+    modalErr:   { backgroundColor:theme.dangerBg, borderRadius:8, padding:10, marginBottom:12, borderWidth:1, borderColor:theme.dangerBorder },
+    modalBtns:  { flexDirection:'row', gap:10 },
+    modalBtn:   { flex:1, padding:13, borderRadius:10, alignItems:'center' },
+    modalBtnText:{ color:'#fff', fontWeight:'bold', fontSize:14 },
+  });
 
-  const getRiskColor = (score) => {
-    if (score >= 8) return '#DC2626';
-    if (score >= 6) return '#EA580C';
-    if (score >= 4) return '#D97706';
-    return '#16A34A';
-  };
+  const [expandedIdx, setExpandedIdx] = useState(null);
 
-  if (loading) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.bg }]}>
-        <ActivityIndicator size="large" color={theme.blue} />
-        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading scan...</Text>
-      </View>
-    );
-  }
+  if (loading) return <View style={s.center}><ActivityIndicator size="large" color={theme.accent}/></View>;
 
-  if (!scan) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.bg }]}>
-        <Text style={{ color: theme.text }}>Scan not found</Text>
-      </View>
-    );
-  }
+  const sc    = scan?.severity_counts || {};
+  const vulns = scan?.vulnerabilities || [];
+  const isRunning = ['running','pending'].includes(scan?.status);
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.bg }]}>
-
-      {/* Header Card */}
-      <View style={[styles.header, {
-        backgroundColor: theme.card,
-        borderWidth: theme.dark ? 1 : 0, borderColor: theme.border,
-      }]}>
-        <Text style={[styles.targetUrl, { color: theme.text }]} numberOfLines={2}>
-          {scan.target_url}
+    <ScrollView style={s.container}>
+      {/* Header */}
+      <View style={s.header}>
+        <Text style={s.headerUrl} numberOfLines={2}>{scan?.target_url || scan?.target}</Text>
+        <Text style={[s.headerMeta, { color: statusColor(scan?.status) }]}>
+          ● {scan?.status?.toUpperCase()} {scan?.created_at ? '· ' + new Date(scan.created_at).toLocaleString() : ''}
         </Text>
-        <View style={styles.statusRow}>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(scan.status) }]}>
-            <Text style={styles.statusBadgeText}>{scan.status.toUpperCase()}</Text>
-          </View>
-          {scan.status === 'running' && (
-            <ActivityIndicator size="small" color={theme.blue} style={{ marginLeft: 8 }} />
-          )}
-        </View>
-        <Text style={[styles.riskScore, { color: getRiskColor(scan.total_risk_score) }]}>
-          Risk Score: {scan.total_risk_score?.toFixed(1) || '0.0'} / 10.0
-        </Text>
-        {scan.status === 'cancelled' && (
-          <View style={[styles.cancelledBanner, { backgroundColor: '#FEF3C7' }]}>
-            <Text style={{ color: '#92400E', fontSize: 12, fontWeight: '600' }}>
-              Scan was cancelled — partial results shown below
-            </Text>
-          </View>
+        {scan?.pages_crawled > 0 && (
+          <Text style={s.headerMeta}>{scan.pages_crawled} pages · {scan.requests_made} requests</Text>
         )}
       </View>
 
-      {/* Action Buttons Row */}
-      <View style={styles.actionRow}>
-        {/* View Report — completed or cancelled */}
-        {(scan.status === 'completed' || scan.status === 'cancelled') && (
-          <TouchableOpacity style={[styles.actionBtn, styles.reportBtn]}
+      {/* Buttons */}
+      <View style={s.btnRow}>
+        {isRunning && (
+          <TouchableOpacity style={[s.actionBtn, { backgroundColor:theme.dangerBg, borderColor:theme.dangerBorder }]}
+            onPress={handleCancel} disabled={cancelling}>
+            {cancelling ? <ActivityIndicator color={theme.danger} size="small"/>
+              : <Text style={[s.actionText, { color:theme.danger }]}>⏹ STOP SCAN</Text>}
+          </TouchableOpacity>
+        )}
+        {scan?.status === 'completed' && (
+          <TouchableOpacity style={[s.actionBtn, { backgroundColor:theme.successBg, borderColor:theme.successBorder }]}
             onPress={() => navigation.navigate('Report', { scanId })}>
-            <Text style={styles.actionBtnText}>View Report</Text>
+            <Text style={[s.actionText, { color:theme.success }]}>↗ FULL REPORT</Text>
           </TouchableOpacity>
         )}
-
-        {/* Stop Scan — only when running */}
-        {scan.status === 'running' && (
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.stopBtn, cancelling && styles.btnDisabled]}
-            onPress={handleCancel}
-            disabled={cancelling}>
-            {cancelling
-              ? <ActivityIndicator color="#fff" size="small" />
-              : <Text style={styles.actionBtnText}>Stop Scan</Text>
-            }
+        {scan?.status === 'completed' && (
+          <TouchableOpacity style={[s.actionBtn, { backgroundColor:'rgba(139,92,246,0.12)', borderColor:'rgba(139,92,246,0.35)' }]}
+            onPress={() => navigation.navigate('AIRemediation', { scanId })}>
+            <Text style={[s.actionText, { color:'#A78BFA' }]}>🤖 AI FIX</Text>
           </TouchableOpacity>
         )}
-
-        {/* Delete — always visible */}
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.deleteBtn]}
-          onPress={handleDeletePress}>
-          <Text style={styles.actionBtnText}>Delete</Text>
+        <TouchableOpacity style={[s.actionBtn, { backgroundColor:theme.dangerBg, borderColor:theme.dangerBorder }]}
+          onPress={() => { setDelErr(''); setDelPass(''); setShowDel(true); }}>
+          <Text style={[s.actionText, { color:theme.danger }]}>✕ DELETE</Text>
         </TouchableOpacity>
       </View>
 
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>Module Results</Text>
-
-      {/* Module Cards */}
-      {scan.steps && scan.steps.map((step, index) => (
-        <View key={index} style={[styles.moduleCard, {
-          backgroundColor: theme.card,
-          borderWidth: theme.dark ? 1 : 0, borderColor: theme.border,
-        }]}>
-          <View style={styles.moduleHeader}>
-            <Text style={[styles.moduleIcon, { color: getStatusColor(step.status) }]}>
-              {getStatusIcon(step.status)}
-            </Text>
-            <Text style={[styles.moduleName, { color: theme.text }]}>{step.module_name}</Text>
-            {step.severity && step.severity !== 'info' && (
-              <View style={[styles.severityBadge,
-                { backgroundColor: getSeverityColor(step.severity) + '30' }]}>
-                <Text style={[styles.severityText, { color: getSeverityColor(step.severity) }]}>
-                  {step.severity.toUpperCase()}
-                </Text>
-              </View>
-            )}
+      {/* Progress */}
+      {isRunning && (
+        <View style={s.card}>
+          <Text style={s.sTitle}>SCAN PROGRESS</Text>
+          <View style={{ flexDirection:'row', justifyContent:'space-between', marginBottom:6 }}>
+            <Text style={s.stepText}>{scan?.current_step || 'Initializing…'}</Text>
+            <Text style={s.pctText}>{scan?.progress || 0}%</Text>
           </View>
-
-          {step.status === 'running' && (
-            <View style={styles.runningRow}>
-              <ActivityIndicator size="small" color={theme.blue} />
-              <Text style={[styles.runningText, { color: theme.blue }]}>Scanning...</Text>
-            </View>
-          )}
-
-          {step.evidence && step.status === 'completed' && (
-            <View style={[styles.evidenceBox, {
-              backgroundColor: theme.dark ? '#422006' : '#FEF3C7',
-            }]}>
-              <Text style={[styles.evidenceLabel, { color: theme.dark ? '#FCD34D' : '#92400E' }]}>
-                Evidence:
-              </Text>
-              <Text style={[styles.evidenceText, { color: theme.dark ? '#FDE68A' : '#78350F' }]}>
-                {step.evidence}
-              </Text>
-            </View>
-          )}
-
-          {step.remediation && (
-            <View style={[styles.remediationBox, {
-              backgroundColor: theme.dark ? '#052E16' : '#DCFCE7',
-            }]}>
-              <Text style={[styles.remediationLabel, { color: theme.dark ? '#4ADE80' : '#166534' }]}>
-                Fix:
-              </Text>
-              <Text style={[styles.remediationText, { color: theme.dark ? '#86EFAC' : '#14532D' }]}>
-                {step.remediation}
-              </Text>
-            </View>
-          )}
-
-          {step.vulnerabilities && step.vulnerabilities.length > 0 && (
-            <Text style={styles.vulnCount}>
-              {step.vulnerabilities.length} vulnerability found
-            </Text>
-          )}
+          <View style={s.progressBar}>
+            <View style={[s.progressFill, { width:`${scan?.progress||0}%` }]}/>
+          </View>
         </View>
-      ))}
+      )}
 
-      <View style={{ height: 40 }} />
-
-      {/* Delete Password Modal */}
-      <Modal visible={showDeleteModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalBox, {
-            backgroundColor: theme.card,
-            borderColor: '#DC2626', borderWidth: 1,
-          }]}>
-            <Text style={[styles.modalTitle, { color: '#DC2626' }]}>Confirm Delete</Text>
-            <Text style={[styles.modalDesc, { color: theme.textSecondary }]}>
-              Enter your password to permanently delete this scan.
-            </Text>
-            {deleteError.length > 0 && (
-              <View style={[styles.errorBox, {
-                backgroundColor: theme.dangerBg, borderColor: theme.dangerBorder,
-              }]}>
-                <Text style={[styles.errorText, { color: theme.danger }]}>{deleteError}</Text>
+      {/* Severity summary */}
+      {scan?.status === 'completed' && (
+        <View style={s.card}>
+          <Text style={s.sTitle}>SEVERITY BREAKDOWN</Text>
+          <View style={s.sevRow}>
+            {['critical','high','medium','low','info'].map(sv => (
+              <View key={sv} style={[s.sevCard, { backgroundColor:theme[sv+'Bg']||theme.card, borderColor:theme[sv+'Border']||theme.border, borderTopColor:sevColor(sv) }]}>
+                <Text style={[s.sevNum, { color:sevColor(sv) }]}>{sc[sv]||0}</Text>
+                <Text style={[s.sevLabel, { color:sevColor(sv) }]}>{sv.toUpperCase()}</Text>
               </View>
-            )}
-            <TextInput
-              style={[styles.input, {
-                backgroundColor: theme.input,
-                borderColor: theme.inputBorder,
-                color: theme.text,
-              }]}
-              placeholder="Enter your password"
-              placeholderTextColor={theme.textMuted}
-              value={deletePassword}
-              onChangeText={(t) => { setDeletePassword(t); setDeleteError(''); }}
-              secureTextEntry
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalBtn, {
-                  backgroundColor: theme.bg,
-                  borderWidth: 1, borderColor: theme.border,
-                }]}
-                onPress={() => {
-                  setShowDeleteModal(false);
-                  setDeletePassword('');
-                  setDeleteError('');
-                }}>
-                <Text style={[styles.modalBtnText, { color: theme.text }]}>Cancel</Text>
+            ))}
+          </View>
+          <View style={{ flexDirection:'row', justifyContent:'space-between', marginTop:4 }}>
+            <Text style={{ color:theme.textSecondary, fontSize:12 }}>Risk Score</Text>
+            <Text style={{ color:theme.high, fontWeight:'bold', fontSize:14 }}>
+              {scan?.total_risk_score?.toFixed(1)||'0.0'} / 10
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Vulnerabilities */}
+      {vulns.length > 0 && (
+        <View style={{ margin:12, marginTop:0 }}>
+          <Text style={[s.sTitle, { marginTop:12, marginBottom:8 }]}>VULNERABILITIES ({vulns.length})</Text>
+          {vulns.map((v, i) => (
+            <TouchableOpacity key={i}
+              style={[s.vulnItem, { backgroundColor:theme.card, borderColor:theme.border, borderLeftColor:sevColor(v.severity) }]}
+              onPress={() => setExpandedIdx(expandedIdx===i ? null : i)}>
+              <View style={s.vulnHeader}>
+                <View style={[s.badge, { backgroundColor:sevColor(v.severity)+'20', borderWidth:1, borderColor:sevColor(v.severity)+'40' }]}>
+                  <Text style={[s.badgeText, { color:sevColor(v.severity) }]}>{v.severity?.toUpperCase()||'INFO'}</Text>
+                </View>
+                <Text style={[s.vulnType, { marginLeft:8 }]} numberOfLines={1}>{v.vuln_type}</Text>
+                <Text style={{ color:theme.textMuted, fontSize:12 }}>{expandedIdx===i ? '▲':'▼'}</Text>
+              </View>
+              {expandedIdx === i && (
+                <View style={s.vulnDetail}>
+                  {v.url && <View style={s.detailRow}><Text style={s.detailLabel}>URL</Text><Text style={s.detailVal} numberOfLines={2}>{v.url}</Text></View>}
+                  {v.param && v.param!=='N/A' && <View style={s.detailRow}><Text style={s.detailLabel}>PARAM</Text><Text style={s.detailVal}>{v.param}</Text></View>}
+                  {v.payload && <View style={s.detailRow}><Text style={s.detailLabel}>PAYLOAD</Text><View style={s.codeBox}><Text style={s.codeText}>{v.payload}</Text></View></View>}
+                  {v.evidence && <View style={s.detailRow}><Text style={s.detailLabel}>EVIDENCE</Text><Text style={s.detailVal}>{v.evidence}</Text></View>}
+                  {v.cve_id && <View style={s.detailRow}><Text style={s.detailLabel}>CVE</Text><Text style={[s.detailVal, { color:theme.accent }]}>{v.cve_id}</Text></View>}
+                  {v.risk_score && <View style={s.detailRow}><Text style={s.detailLabel}>RISK SCORE</Text><Text style={[s.detailVal, { color:theme.high }]}>{v.risk_score}/10</Text></View>}
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {scan?.status === 'completed' && vulns.length === 0 && (
+        <View style={{ backgroundColor:theme.lowBg, borderRadius:14, margin:12, padding:30, alignItems:'center', borderWidth:1, borderColor:theme.lowBorder }}>
+          <Text style={{ fontSize:18, fontWeight:'bold', color:theme.success }}>✓ No vulnerabilities found!</Text>
+          <Text style={{ color:theme.textSecondary, marginTop:6, textAlign:'center' }}>Target passed all security checks.</Text>
+        </View>
+      )}
+
+      <View style={{ height:40 }}/>
+
+      {/* Delete modal */}
+      <Modal visible={showDel} transparent animationType="fade">
+        <View style={s.modalOverlay}>
+          <View style={s.modal}>
+            <Text style={s.modalTitle}>CONFIRM DELETE</Text>
+            <Text style={s.modalDesc}>Enter your password to permanently delete this scan.</Text>
+            {!!delErr && <View style={s.modalErr}><Text style={{ color:theme.danger, fontSize:12 }}>⚠ {delErr}</Text></View>}
+            <TextInput style={s.modalInput} placeholder="Your password" placeholderTextColor={theme.textMuted}
+              value={delPass} onChangeText={t=>{setDelPass(t);setDelErr('');}} secureTextEntry/>
+            <View style={s.modalBtns}>
+              <TouchableOpacity style={[s.modalBtn, { backgroundColor:theme.bg, borderWidth:1, borderColor:theme.border }]}
+                onPress={() => { setShowDel(false); setDelPass(''); setDelErr(''); }}>
+                <Text style={[s.modalBtnText, { color:theme.text }]}>CANCEL</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.deleteBtn, deleting && styles.btnDisabled]}
-                onPress={handleDeleteConfirm}
-                disabled={deleting}>
-                {deleting
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={styles.modalBtnText}>Delete</Text>
-                }
+              <TouchableOpacity style={[s.modalBtn, { backgroundColor:theme.danger }, deleting&&{opacity:0.5}]}
+                onPress={handleDelete} disabled={deleting}>
+                {deleting ? <ActivityIndicator color="#fff" size="small"/> : <Text style={s.modalBtnText}>DELETE</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -368,60 +273,3 @@ export default function ScanProgressScreen({ route, navigation }) {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  loadingText: { marginTop: 12 },
-  header: { margin: 16, borderRadius: 16, padding: 20, elevation: 3 },
-  targetUrl: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  statusBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-  statusBadgeText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
-  riskScore: { fontSize: 18, fontWeight: 'bold', marginTop: 8 },
-  cancelledBanner: {
-    marginTop: 12, padding: 10, borderRadius: 8, alignItems: 'center',
-  },
-  actionRow: {
-    flexDirection: 'row', marginHorizontal: 16,
-    marginBottom: 12, marginTop: 0,
-  },
-  actionBtn: {
-    flex: 1, padding: 13, borderRadius: 12,
-    alignItems: 'center', marginHorizontal: 4, elevation: 2,
-  },
-  actionBtnText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
-  reportBtn: { backgroundColor: '#16A34A' },
-  stopBtn: { backgroundColor: '#D97706' },
-  deleteBtn: { backgroundColor: '#DC2626' },
-  btnDisabled: { opacity: 0.5 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginLeft: 16, marginBottom: 8 },
-  moduleCard: { marginHorizontal: 16, marginBottom: 10, borderRadius: 12, padding: 14, elevation: 2 },
-  moduleHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  moduleIcon: { fontSize: 14, fontWeight: 'bold', marginRight: 8, width: 28 },
-  moduleName: { fontSize: 15, fontWeight: '600', flex: 1 },
-  severityBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  severityText: { fontSize: 11, fontWeight: 'bold' },
-  runningRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 32 },
-  runningText: { marginLeft: 8, fontSize: 13 },
-  evidenceBox: { borderRadius: 8, padding: 10, marginTop: 8 },
-  evidenceLabel: { fontWeight: 'bold', fontSize: 12 },
-  evidenceText: { fontSize: 12, marginTop: 2 },
-  remediationBox: { borderRadius: 8, padding: 10, marginTop: 6 },
-  remediationLabel: { fontWeight: 'bold', fontSize: 12 },
-  remediationText: { fontSize: 12, marginTop: 2 },
-  vulnCount: { color: '#DC2626', fontSize: 12, fontWeight: 'bold', marginTop: 6, paddingLeft: 32 },
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center', alignItems: 'center', padding: 24,
-  },
-  modalBox: { borderRadius: 16, padding: 24, width: '100%', maxWidth: 400 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
-  modalDesc: { fontSize: 13, marginBottom: 16, lineHeight: 20 },
-  modalButtons: { flexDirection: 'row', marginTop: 4 },
-  modalBtn: { flex: 1, padding: 14, borderRadius: 10, alignItems: 'center', marginHorizontal: 4 },
-  modalBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
-  errorBox: { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 12 },
-  errorText: { fontSize: 13 },
-  input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 14, marginBottom: 12 },
-});

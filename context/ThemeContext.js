@@ -1,3 +1,4 @@
+// PATH: vulnassess-app/context/ThemeContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -5,66 +6,108 @@ const ThemeContext = createContext();
 
 export const lightTheme = {
   dark: false,
-  bg: '#F0F4FF',
-  card: '#FFFFFF',
-  header: '#1D6FEB',
-  headerText: '#FFFFFF',
-  text: '#1F2937',
-  textSecondary: '#6B7280',
-  textMuted: '#9CA3AF',
-  border: '#E5E7EB',
-  input: '#F9FAFB',
-  inputBorder: '#E5E7EB',
-  statCard: '#FFFFFF',
-  pill: '#FFFFFF',
-  pillBorder: '#E5E7EB',
-  danger: '#DC2626',
-  dangerBg: '#FEF2F2',
-  dangerBorder: '#FECACA',
-  success: '#16A34A',
-  successBg: '#F0FDF4',
-  successBorder: '#BBF7D0',
-  blue: '#1D6FEB',
-  blueBg: '#EFF6FF',
-  blueBorder: '#BFDBFE',
-  scanCard: '#FFFFFF',
-  shadow: '#000',
+  bg:             '#ECEFF1',
+  bg2:            '#E4E8EB',
+  card:           '#FDFFF5',
+  header:         '#191970',
+  headerText:     '#FDFFF5',
+  sidebar:        '#191970',
+  text:           '#2C2C2A',
+  textSecondary:  '#5F5E5A',
+  textMuted:      '#888780',
+  border:         '#D3D1C7',
+  input:          '#FDFFF5',
+  inputBorder:    '#D3D1C7',
+  accent:         '#191970',
+  accentMuted:    'rgba(25,25,112,0.08)',
+  // Severity
+  critical:       '#A32D2D',
+  criticalBg:     '#FCEBEB',
+  criticalBorder: '#F7C1C1',
+  high:           '#854F0B',
+  highBg:         '#FAEEDA',
+  highBorder:     '#FAC775',
+  medium:         '#185FA5',
+  mediumBg:       '#E6F1FB',
+  mediumBorder:   '#B5D4F4',
+  low:            '#3B6D11',
+  lowBg:          '#EAF3DE',
+  lowBorder:      '#C0DD97',
+  // Status
+  success:        '#3B6D11',
+  successBg:      '#EAF3DE',
+  successBorder:  '#C0DD97',
+  warning:        '#BA7517',
+  warningBg:      '#FAEEDA',
+  danger:         '#A32D2D',
+  dangerBg:       '#FCEBEB',
+  dangerBorder:   '#F7C1C1',
+  blue:           '#185FA5',
+  blueBg:         '#E6F1FB',
+  blueBorder:     '#B5D4F4',
+  muted:          '#888780',
+  // Legacy
+  statCard:       '#FDFFF5',
+  scanCard:       '#FDFFF5',
+  pill:           '#FDFFF5',
+  pillBorder:     '#D3D1C7',
+  shadow:         '#000',
 };
 
 export const darkTheme = {
   dark: true,
-  bg: '#0F172A',
-  card: '#1E293B',
-  header: '#1E293B',
-  headerText: '#F1F5F9',
-  text: '#F1F5F9',
-  textSecondary: '#94A3B8',
-  textMuted: '#64748B',
-  border: '#334155',
-  input: '#0F172A',
-  inputBorder: '#334155',
-  statCard: '#1E293B',
-  pill: '#1E293B',
-  pillBorder: '#334155',
-  danger: '#F87171',
-  dangerBg: '#450A0A',
-  dangerBorder: '#7F1D1D',
-  success: '#4ADE80',
-  successBg: '#052E16',
-  successBorder: '#14532D',
-  blue: '#60A5FA',
-  blueBg: '#172554',
-  blueBorder: '#1E3A8A',
-  scanCard: '#1E293B',
-  shadow: '#000',
+  bg:             '#060a0f',
+  bg2:            '#0d1117',
+  card:           '#111827',
+  header:         '#191970',
+  headerText:     '#FDFFF5',
+  sidebar:        '#191970',
+  text:           '#e2e8f0',
+  textSecondary:  '#94a3b8',
+  textMuted:      '#64748b',
+  border:         '#1e2d3d',
+  input:          '#0d1117',
+  inputBorder:    '#1e2d3d',
+  accent:         '#00d4ff',
+  accentMuted:    'rgba(0,212,255,0.08)',
+  // Severity
+  critical:       '#F7C1C1',
+  criticalBg:     '#791F1F',
+  criticalBorder: '#A32D2D',
+  high:           '#FAC775',
+  highBg:         '#633806',
+  highBorder:     '#854F0B',
+  medium:         '#B5D4F4',
+  mediumBg:       '#0C447C',
+  mediumBorder:   '#185FA5',
+  low:            '#C0DD97',
+  lowBg:          '#27500A',
+  lowBorder:      '#3B6D11',
+  // Status
+  success:        '#00ff88',
+  successBg:      '#052E16',
+  successBorder:  '#14532D',
+  warning:        '#FAC775',
+  warningBg:      '#633806',
+  danger:         '#F87171',
+  dangerBg:       '#450A0A',
+  dangerBorder:   '#7F1D1D',
+  blue:           '#85B7EB',
+  blueBg:         '#172554',
+  blueBorder:     '#1E3A8A',
+  muted:          '#64748b',
+  // Legacy
+  statCard:       '#111827',
+  scanCard:       '#111827',
+  pill:           '#111827',
+  pillBorder:     '#1e2d3d',
+  shadow:         '#000',
 };
 
 export function ThemeProvider({ children }) {
   const [isDark, setIsDark] = useState(false);
 
-  useEffect(() => {
-    loadTheme();
-  }, []);
+  useEffect(() => { loadTheme(); }, []);
 
   const loadTheme = async () => {
     const saved = await AsyncStorage.getItem('theme');
@@ -77,10 +120,8 @@ export function ThemeProvider({ children }) {
     await AsyncStorage.setItem('theme', newVal ? 'dark' : 'light');
   };
 
-  const theme = isDark ? darkTheme : lightTheme;
-
   return (
-    <ThemeContext.Provider value={{ theme, isDark, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme: isDark ? darkTheme : lightTheme, isDark, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );
